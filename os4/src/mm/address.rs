@@ -1,23 +1,26 @@
+//! Implementation of physical and virtual address and page number.
+
 use super::PageTableEntry;
+use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 use core::fmt::{self, Debug, Formatter};
 
-use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
-
-// 物理地址
-#[derive(Copy, Clone, Ord, PartialEq, Eq, PartialOrd)]
+/// physical address
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct PhysAddr(pub usize);
 
-// 虚拟地址
-#[derive(Copy, Clone, Ord, PartialEq, Eq, PartialOrd)]
+/// virtual address
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct VirtAddr(pub usize);
 
-// 物理页号
-#[derive(Copy, Clone, Ord, PartialEq, Eq, PartialOrd)]
+/// physical page number
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct PhysPageNum(pub usize);
 
-// 虚拟页号
-#[derive(Copy, Clone, Ord, PartialEq, Eq, PartialOrd)]
+/// virtual page number
+#[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct VirtPageNum(pub usize);
+
+/// Debugging
 
 impl Debug for VirtAddr {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
@@ -44,7 +47,6 @@ impl Debug for PhysPageNum {
 /// T -> usize: T.0
 /// usize -> T: usize.into()
 
-// 将usize转换为元组结构体
 impl From<usize> for PhysAddr {
     fn from(v: usize) -> Self {
         Self(v)
@@ -65,7 +67,6 @@ impl From<usize> for VirtPageNum {
         Self(v)
     }
 }
-// 将元组结构体转换为usize
 impl From<PhysAddr> for usize {
     fn from(v: PhysAddr) -> Self {
         v.0
@@ -88,46 +89,37 @@ impl From<VirtPageNum> for usize {
 }
 
 impl VirtAddr {
-    // 向下取整
     pub fn floor(&self) -> VirtPageNum {
         VirtPageNum(self.0 / PAGE_SIZE)
     }
-    // 向上取整
     pub fn ceil(&self) -> VirtPageNum {
         VirtPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
     }
-    // 获取页偏移量
     pub fn page_offset(&self) -> usize {
         self.0 & (PAGE_SIZE - 1)
     }
-    // 判断是否对齐（偏移量为0）？
     pub fn aligned(&self) -> bool {
         self.page_offset() == 0
     }
 }
-// 将虚拟地址转换为虚拟页号
 impl From<VirtAddr> for VirtPageNum {
     fn from(v: VirtAddr) -> Self {
         assert_eq!(v.page_offset(), 0);
         v.floor()
     }
 }
-// 将虚拟页号转换为虚拟地址
 impl From<VirtPageNum> for VirtAddr {
     fn from(v: VirtPageNum) -> Self {
         Self(v.0 << PAGE_SIZE_BITS)
     }
 }
 impl PhysAddr {
-    // 向下取整
     pub fn floor(&self) -> PhysPageNum {
         PhysPageNum(self.0 / PAGE_SIZE)
     }
-    // 向上取整
     pub fn ceil(&self) -> PhysPageNum {
         PhysPageNum((self.0 - 1 + PAGE_SIZE) / PAGE_SIZE)
     }
-    // 获取页偏移量
     pub fn page_offset(&self) -> usize {
         self.0 & (PAGE_SIZE - 1)
     }
@@ -135,11 +127,9 @@ impl PhysAddr {
         self.page_offset() == 0
     }
 }
-// 将物理地址转换为物理页号
 impl From<PhysAddr> for PhysPageNum {
     fn from(v: PhysAddr) -> Self {
         assert_eq!(v.page_offset(), 0);
-        // 页号是一个左闭右开的区间
         v.floor()
     }
 }
@@ -186,6 +176,7 @@ impl StepByOne for VirtPageNum {
 }
 
 #[derive(Copy, Clone)]
+/// a simple range structure for type T
 pub struct SimpleRange<T>
 where
     T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
@@ -218,7 +209,7 @@ where
         SimpleRangeIterator::new(self.l, self.r)
     }
 }
-
+/// iterator for the simple range structure
 pub struct SimpleRangeIterator<T>
 where
     T: StepByOne + Copy + PartialEq + PartialOrd + Debug,
@@ -249,4 +240,6 @@ where
         }
     }
 }
+
+/// a simple range structure for virtual page number
 pub type VPNRange = SimpleRange<VirtPageNum>;

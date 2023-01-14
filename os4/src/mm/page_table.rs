@@ -1,12 +1,12 @@
+//! Implementation of [`PageTableEntry`] and [`PageTable`].
+
+use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
 
-use super::address::{PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
-use super::frame_allocator::{frame_alloc, FrameTracker};
-
 bitflags! {
-    // 页表项标志位
+    /// page table entry flags
     pub struct PTEFlags: u8 {
         const V = 1 << 0;
         const R = 1 << 1;
@@ -19,9 +19,9 @@ bitflags! {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Copy, Clone)]
 #[repr(C)]
-// 页表项结构
+/// page table entry structure
 pub struct PageTableEntry {
     pub bits: usize,
 }
@@ -55,11 +55,13 @@ impl PageTableEntry {
     }
 }
 
+/// page table structure
 pub struct PageTable {
     root_ppn: PhysPageNum,
     frames: Vec<FrameTracker>,
 }
 
+/// Assume that it won't oom when creating/mapping.
 impl PageTable {
     pub fn new() -> Self {
         let frame = frame_alloc().unwrap();
@@ -68,6 +70,8 @@ impl PageTable {
             frames: vec![frame],
         }
     }
+    /// Temporarily used to get arguments from user space.
+    /// 临时从用户空间获取参数
     pub fn from_token(satp: usize) -> Self {
         Self {
             root_ppn: PhysPageNum::from(satp & ((1usize << 44) - 1)),
@@ -119,7 +123,7 @@ impl PageTable {
     #[allow(unused)]
     pub fn unmap(&mut self, vpn: VirtPageNum) {
         let pte = self.find_pte_create(vpn).unwrap();
-        assert!(pte.is_valid(), "vpn {:?} is invalid  before unmappind", vpn);
+        assert!(pte.is_valid(), "vpn {:?} is invalid before unmapping", vpn);
         *pte = PageTableEntry::empty();
     }
     pub fn translate(&self, vpn: VirtPageNum) -> Option<PageTableEntry> {
@@ -130,6 +134,7 @@ impl PageTable {
     }
 }
 
+/// translate a pointer to a mutable u8 Vec through page table
 pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&'static mut [u8]> {
     let page_table = PageTable::from_token(token);
     let mut start = ptr as usize;
@@ -137,10 +142,10 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
     let mut v = Vec::new();
     while start < end {
         let start_va = VirtAddr::from(start);
-        let vpn = start_va.floor();
+        let mut vpn = start_va.floor();
         let ppn = page_table.translate(vpn).unwrap().ppn();
         vpn.step();
-        let end_va: VirtAddr = vpn.into();
+        let mut end_va: VirtAddr = vpn.into();
         end_va = end_va.min(VirtAddr::from(end));
         if end_va.page_offset() == 0 {
             v.push(&mut ppn.get_bytes_array()[start_va.page_offset()..]);
@@ -149,6 +154,5 @@ pub fn translated_byte_buffer(token: usize, ptr: *const u8, len: usize) -> Vec<&
         }
         start = end_va.into();
     }
-
     v
 }
